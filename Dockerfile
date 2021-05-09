@@ -9,9 +9,10 @@ RUN apt-get -q -y update \
   && apt-get -q -y autoremove \
   && apt-get -q -y clean \
   && rm -rf /var/lib/apt/lists/* \
-  && git clone git@github.com:negineri/sekai-result-ocr.git . \
+  && git clone https://github.com/negineri/sekai-result-ocr.git . \
   && pip install --upgrade pip \
   && pip install pipenv \
   && pipenv install
+EXPOSE 80
 ENTRYPOINT [ "gunicorn", "main:app" ]
 CMD [ "-c", "gunicorn_settings.py" ]
