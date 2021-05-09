@@ -5,8 +5,12 @@
 <body>
     <h1>sekai-result-ocr</h1>
     <p>プロセカのリザルト画面のスクリーンショットをOCRを使ってjson化します</p>
-    <form action="" method="get">
+    <form action="ocr" method="get">
         <p><label>画像URL：<input type="text" name="src" id="src"></label></p>
+        <p><input type="submit" value="送信"></p>
+    </form>
+    <form action="ocr" method="post" enctype="multipart/form-data">
+        <p><label>画像ファイル：</label><input type="file" name="src_file" id="src_file"></p>
         <p><input type="submit" value="送信"></p>
     </form>
     <h2>注意事項</h2>
@@ -16,6 +20,13 @@
         <li>チャレンジライブのリザルトにのみ対応しています</li>
         <li>Android等でスクリーンショットにノッチの部分が黒く残っていると読み取れません</li>
         <li>精度向上を目的として読み取りに失敗した画像は保存しています。個人情報の載った画像等は絶対に送らないでください</li>
+    </ul>
+    <h2>TODO</h2>
+    <ul>
+        <li>通常ライブのリザルト対応</li>
+        <li>タイトル読み取り失敗時のエラー訂正</li>
+        <li>実際のノーツ数とOCR結果の突合</li>
+        <li>ノッチ隠し付きスクリーンショットへの対応</li>
     </ul>
 </body>
 </html>
