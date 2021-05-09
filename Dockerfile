@@ -12,7 +12,7 @@ RUN apt-get -q -y update \
   && git clone https://github.com/negineri/sekai-result-ocr.git . \
   && pip install --upgrade pip \
   && pip install pipenv \
-  && pipenv install
+  && pipenv install --system
 EXPOSE 80
-ENTRYPOINT [ "gunicorn", "main:app" ]
+ENTRYPOINT ["gunicorn", "main:app" ]
 CMD [ "-c", "gunicorn_settings.py" ]
