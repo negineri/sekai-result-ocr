@@ -6,6 +6,7 @@ from typing import Optional
 
 class ScoreResult:
     def __init__(self):
+        self.live = ""
         self.title = ""
         self.difficulty = ""
         self.perfect = 0
@@ -15,7 +16,8 @@ class ScoreResult:
         self.miss = 0
 
     def to_dict(self):
-        res = {'title': self.title,
+        res = {'live': self.live,
+               'title': self.title,
                'difficulty': self.difficulty,
                'perfect': self.perfect,
                'great': self.great,
@@ -53,11 +55,13 @@ def loadfile(fp: str) -> Optional[ScoreResult]:
     im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
         convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
     miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+    result.live = "challenge"
     if not miss.isdecimal():
         im_score = im_crop.crop((int(w * 0.101), int(h * 0.512), int(w * 0.586), int(h * 0.854)))
         im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
             convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
         miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+        result.live = "normal"
         if not miss.isdecimal():
             return None
     result.miss = int(miss)
