@@ -52,7 +52,7 @@ def ocr():
     os.remove(file_path)
     res = result.to_dict()
     res["status"] = "ok"
-    return json.dumps(res)
+    return json.dumps(res, ensure_ascii=False)
 
 
 if __name__ == "__main__":
