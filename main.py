@@ -43,6 +43,7 @@ def ocr():
             f.write(file_data.content)
     ext = imghdr.what(file_path)
     if ext is None:
+        os.remove(file_path)
         return '{status: "error", message: "非対応の画像形式です"}'
     os.rename(file_path, file_path + "." + ext)
     file_path = file_path + "." + ext
