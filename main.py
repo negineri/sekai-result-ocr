@@ -35,8 +35,7 @@ def ocr():
         src_url = request.args.get('src')
         try:
             file_data = requests.get(src_url)
-        except requests.exceptions.RequestException as err:
-            print(err)
+        except requests.exceptions.RequestException:
             return '{status: "error", message: "有効なURLではありません"}'
         file_path = 'tmp/' + str(int(random.random() * 10000000000))
         with open(file_path, mode='wb') as f:
