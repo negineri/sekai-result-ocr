@@ -73,7 +73,7 @@ class ScoreResultChecker:
             self.music_combos[music_title][d["musicDifficulty"]] = d["noteCount"]
 
 
-def loadfile(fp: str) -> Optional[ScoreResult]:
+def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
     tools = pyocr.get_available_tools()
     if len(tools) == 0:
         print("No OCR tool found")
@@ -101,6 +101,9 @@ def loadfile(fp: str) -> Optional[ScoreResult]:
     im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
         convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
     miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+    if debug:
+        im_title.save("data/dst/title.png", "PNG")
+        im_difficulty.save("data/dst/difficulty.png", "PNG")
     result.live = "challenge"
     if not miss.isdecimal():
         im_score = im_crop.crop((int(w * 0.101), int(h * 0.512), int(w * 0.586), int(h * 0.854)))
