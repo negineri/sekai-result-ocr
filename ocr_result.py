@@ -2,6 +2,11 @@ from PIL import Image
 import pyocr
 import sys
 from typing import Optional
+import requests
+
+
+class OCRException(Exception):
+    ...
 
 
 class ScoreResult:
@@ -25,6 +30,47 @@ class ScoreResult:
                'bad': self.bad,
                'miss': self.miss}
         return res
+
+
+class ScoreResultChecker:
+    def __init__(self) -> None:
+        self.music_combos = {}
+        self.musics_url = "https://sekai-world.github.io/sekai-master-db-diff/musics.json"
+        self.music_difficulties_url = "https://sekai-world.github.io/sekai-master-db-diff/musicDifficulties.json"
+        try:
+            self.update()
+        except OCRException as err:
+            raise err
+
+    def correct(self, score_result: ScoreResult) -> Optional[ScoreResult]:
+        if score_result.title not in self.music_combos:
+            return None
+        nc = self.music_combos[score_result.title][score_result.difficulty.lower()]
+        nr = score_result.perfect + score_result.great + score_result.good + score_result.bad + score_result.miss
+        if nc != nr:
+            return None
+        return score_result
+
+    def update(self) -> None:
+        try:
+            musics_data = requests.get(self.musics_url)
+        except requests.exceptions.RequestException:
+            raise OCRException("Failed to download musics.json")
+        musics = musics_data.json()
+        try:
+            music_difficulties_data = requests.get(self.music_difficulties_url)
+        except requests.exceptions.RequestException:
+            raise OCRException("Failed to download musicDifficulties.json")
+        music_difficulties = music_difficulties_data.json()
+        for d in music_difficulties:
+            music_title = ""
+            for m in musics:
+                if d["musicId"] == m["id"]:
+                    music_title = m["title"]
+                    break
+            if music_title not in self.music_combos:
+                self.music_combos[music_title] = {}
+            self.music_combos[music_title][d["musicDifficulty"]] = d["noteCount"]
 
 
 def loadfile(fp: str) -> Optional[ScoreResult]:
