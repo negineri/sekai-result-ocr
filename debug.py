@@ -6,7 +6,7 @@ try:
 except ocr_result.OCRException as err:
     print(err)
     sys.exit(1)
-data = ocr_result.loadfile("data/src/image6.png", debug=True)
+data = ocr_result.loadfile("data/src/image5.jpg", debug=True)
 fix_data = checker.correct(data)
 print(data.to_dict())
 if fix_data is not None:

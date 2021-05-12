@@ -1,4 +1,4 @@
-from PIL import Image
+from PIL import Image, ImageChops
 import pyocr
 import sys
 from typing import Optional
@@ -96,6 +96,13 @@ def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
     tool = tools[0]
     result = ScoreResult()
     im = Image.open(fp)
+    bg = Image.new("L", im.size)
+    im_mono = im.convert("L").point(lambda _: 1 if _ > 10 else 0, mode="1")
+    diff = ImageChops.difference(im_mono, bg)
+    croprange = diff.convert("RGB").getbbox()
+    if croprange is not None:
+        im = im.crop(croprange)
+
     if im.height / im.width > 0.5625:
         h = int(im.width * 0.5625)
         w = im.width
@@ -119,6 +126,10 @@ def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
     if debug:
         im_title.save("data/dst/title.png", "PNG")
         im_difficulty.save("data/dst/difficulty.png", "PNG")
+        im_crop.save("data/dst/crop.png", "PNG")
+        im.save("data/dst/im.png", "PNG")
+        im_mono.save("data/dst/im_mono.png", "PNG")
+        print(croprange)
     result.live = "challenge"
     if not miss.isdecimal():
         im_score = im_crop.crop((int(w * 0.101), int(h * 0.512), int(w * 0.586), int(h * 0.854)))
@@ -129,6 +140,8 @@ def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
         if not miss.isdecimal():
             return None
     result.miss = int(miss)
+    if debug:
+        im_score.save("data/dst/score.png", "PNG")
 
     im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.249), int(im_score.width * 0.978), int(im_score.height * 0.389))).\
         convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
