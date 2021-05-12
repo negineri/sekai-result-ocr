@@ -7,6 +7,8 @@ import unicodedata
 import difflib
 import copy
 
+NOTES_THRESHOLD = 200
+
 
 class OCRException(Exception):
     ...
@@ -95,26 +97,48 @@ def __resize_image(img, magnification):
     return img_resize
 
 
-def __crop_score(im: Image.Image, w, h, tool, result: ScoreResult) -> Optional[Image.Image]:
+def __correct_num(num: str) -> str:
+    res = ""
+    for c in num:
+        if c in ['U', 'O']:
+            res += '0'
+        elif c in ['I', 'l']:
+            res += '1'
+        else:
+            res += c
+    return res
+
+
+def __crop_score(im: Image.Image, w, h, tool, result: ScoreResult, debug=False) -> Optional[Image.Image]:
     xs_buffer = h * 0.018   # iPhone X series homebar buffer
 
     for b in [0, xs_buffer]:
         im_score = im.crop((int(w * 0.041), int(h * 0.622 - b), int(w * 0.526), int(h * 0.964 - b)))
-        im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
-            convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
-        miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
-        if miss.isdecimal():
+        im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.249), int(im_score.width * 0.978), int(im_score.height * 0.389))).\
+            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
+        perfect = tool.image_to_string(im_perfect, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+        if debug:
+            print(perfect)
+        if perfect.isdecimal():
+            if debug:
+                print(f"perfect: {perfect}", end="")
+                im_perfect.save("data/dst/perfect.png", "PNG")
             result.live = "challenge"
-            result.miss = int(miss)
+            result.perfect = int(perfect)
             return im_score
 
         im_score = im.crop((int(w * 0.101), int(h * 0.512 - b), int(w * 0.586), int(h * 0.854 - b)))
-        im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
-            convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
-        miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
-        if miss.isdecimal():
+        im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.249), int(im_score.width * 0.978), int(im_score.height * 0.389))).\
+            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
+        perfect = tool.image_to_string(im_perfect, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+        if debug:
+            print(perfect)
+        if perfect.isdecimal():
+            if debug:
+                print(f"perfect: {perfect}", end="")
+                im_perfect.save("data/dst/perfect.png", "PNG")
             result.live = "normal"
-            result.miss = int(miss)
+            result.perfect = int(perfect)
             return im_score
     return None
 
@@ -150,7 +174,7 @@ def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
         im_difficulty = im_crop.crop((int(w * 0.091), int(h * 0.077), int(w * 0.175), int(h * 0.117))).convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
         im_title = im_crop.crop((int(w * 0.081), 0, int(w * 0.5), int(h * 0.066))).convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
 
-    im_score = __crop_score(im_crop, w, h, tool, result)
+    im_score = __crop_score(im_crop, w, h, tool, result, debug)
     if im_score is None:
         print("im_score is none")
         return None
@@ -163,54 +187,66 @@ def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
         im_mono.save("data/dst/im_mono.png", "PNG")
         print(f"{croprange}")
 
-    im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.249), int(im_score.width * 0.978), int(im_score.height * 0.389))).\
-        convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
-    perfect = tool.image_to_string(im_perfect, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
-    if debug:
-        print(f"perfect: {perfect} / ", end="")
-        im_perfect.save("data/dst/perfect.png", "PNG")
-    if not perfect.isdecimal():
-        return None
-    result.perfect = int(perfect)
-
     im_great = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.389), int(im_score.width * 0.978), int(im_score.height * 0.532))).\
-        convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
+        convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
     great = tool.image_to_string(im_great, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
     if debug:
-        print(f"great: {great} / ", end="")
+        print(f"/ great: {great} ", end="")
         im_great.save("data/dst/great.png", "PNG")
+    great = __correct_num(great)
+    if debug:
+        print(f"-> {great} ", end="")
     if not great.isdecimal():
         return None
     result.great = int(great)
 
     im_good = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.532), int(im_score.width * 0.978), int(im_score.height * 0.675))).\
-        convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
+        convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
     good = tool.image_to_string(im_good, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
     if debug:
-        print(f"good: {good} / ", end="")
+        print(f"/ good: {good} ", end="")
         im_good.save("data/dst/good.png", "PNG")
+    good = __correct_num(good)
+    if debug:
+        print(f"-> {good} ", end="")
     if not good.isdecimal():
         return None
     result.good = int(good)
 
     im_bad = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.675), int(im_score.width * 0.978), int(im_score.height * 0.818))).\
-        convert("L").point(lambda _: 0 if _ > 180 else 1, mode="1")
+        convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
     bad = tool.image_to_string(im_bad, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
     if debug:
-        print(f"bad: {bad} / ", end="")
+        print(f"/ bad: {bad} ", end="")
         im_bad.save("data/dst/bad.png", "PNG")
+    bad = __correct_num(bad)
+    if debug:
+        print(f"-> {bad} ", end="")
     if not bad.isdecimal():
         return None
     result.bad = int(bad)
 
+    im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
+        convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 1, mode="1")
+    miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+    if debug:
+        print(f"/ miss: {miss} ", end="")
+        im_miss.save("data/dst/miss.png", "PNG")
+    miss = __correct_num(miss)
+    if debug:
+        print(f"-> {miss} ", end="")
+    if not miss.isdecimal():
+        return None
+    result.miss = int(miss)
+
     title = tool.image_to_string(im_title, lang="jpn", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
     if debug:
-        print(f"title: {title} / ")
+        print(f"/ title: {title} ")
     result.title = title
 
     difficulty = tool.image_to_string(im_difficulty, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
     if debug:
-        print(f"difficulty: {difficulty}")
+        print(f"/ difficulty: {difficulty}")
     match_ratio = 0
     correct_difficulty = ""
     for d in ["EASY", "NORMAL", "HARD", "EXPERT", "MASTER"]:
