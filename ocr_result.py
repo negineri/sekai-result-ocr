@@ -2,6 +2,14 @@ from PIL import Image
 import pyocr
 import sys
 from typing import Optional
+import requests
+import unicodedata
+import difflib
+import copy
+
+
+class OCRException(Exception):
+    ...
 
 
 class ScoreResult:
@@ -27,7 +35,60 @@ class ScoreResult:
         return res
 
 
-def loadfile(fp: str) -> Optional[ScoreResult]:
+class ScoreResultChecker:
+    def __init__(self) -> None:
+        self.music_combos = {}
+        self.musics_url = "https://sekai-world.github.io/sekai-master-db-diff/musics.json"
+        self.music_difficulties_url = "https://sekai-world.github.io/sekai-master-db-diff/musicDifficulties.json"
+        try:
+            self.update()
+        except OCRException as err:
+            raise err
+
+    def __correct_title(self, title):
+        title = unicodedata.normalize('NFKC', title)
+        match_ratio = 0
+        correct_title = ""
+        for t in self.music_combos:
+            s = difflib.SequenceMatcher(None, t, title).ratio()
+            if s > match_ratio:
+                match_ratio = s
+                correct_title = t
+        return correct_title
+
+    def correct(self, score_result: ScoreResult) -> Optional[ScoreResult]:
+        res = copy.deepcopy(score_result)
+        if score_result.title not in self.music_combos:
+            res.title = self.__correct_title(score_result.title)
+        nc = self.music_combos[res.title][res.difficulty.lower()]
+        nr = res.perfect + res.great + res.good + res.bad + res.miss
+        if nc != nr:
+            return None
+        return res
+
+    def update(self) -> None:
+        try:
+            musics_data = requests.get(self.musics_url)
+        except requests.exceptions.RequestException:
+            raise OCRException("Failed to download musics.json")
+        musics = musics_data.json()
+        try:
+            music_difficulties_data = requests.get(self.music_difficulties_url)
+        except requests.exceptions.RequestException:
+            raise OCRException("Failed to download musicDifficulties.json")
+        music_difficulties = music_difficulties_data.json()
+        for d in music_difficulties:
+            music_title = ""
+            for m in musics:
+                if d["musicId"] == m["id"]:
+                    music_title = m["title"]
+                    break
+            if music_title not in self.music_combos:
+                self.music_combos[music_title] = {}
+            self.music_combos[music_title][d["musicDifficulty"]] = d["noteCount"]
+
+
+def loadfile(fp: str, debug=False) -> Optional[ScoreResult]:
     tools = pyocr.get_available_tools()
     if len(tools) == 0:
         print("No OCR tool found")
@@ -55,6 +116,9 @@ def loadfile(fp: str) -> Optional[ScoreResult]:
     im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.818), int(im_score.width * 0.978), int(im_score.height * 0.958))).\
         convert('1', dither=Image.NONE).point(lambda _: 1 if _ == 0 else 0)
     miss = tool.image_to_string(im_miss, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
+    if debug:
+        im_title.save("data/dst/title.png", "PNG")
+        im_difficulty.save("data/dst/difficulty.png", "PNG")
     result.live = "challenge"
     if not miss.isdecimal():
         im_score = im_crop.crop((int(w * 0.101), int(h * 0.512), int(w * 0.586), int(h * 0.854)))

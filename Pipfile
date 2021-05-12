@@ -9,6 +9,7 @@ pyocr = "*"
 requests = "*"
 flask = "*"
 gunicorn = "*"
+apscheduler = "*"
 
 [dev-packages]
 autopep8 = "*"
