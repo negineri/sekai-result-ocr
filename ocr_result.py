@@ -3,6 +3,9 @@ import pyocr
 import sys
 from typing import Optional
 import requests
+import unicodedata
+import difflib
+import copy
 
 
 class OCRException(Exception):
@@ -42,14 +45,26 @@ class ScoreResultChecker:
         except OCRException as err:
             raise err
 
+    def __correct_title(self, title):
+        title = unicodedata.normalize('NFKC', title)
+        match_ratio = 0
+        correct_title = ""
+        for t in self.music_combos:
+            s = difflib.SequenceMatcher(None, t, title).ratio()
+            if s > match_ratio:
+                match_ratio = s
+                correct_title = t
+        return correct_title
+
     def correct(self, score_result: ScoreResult) -> Optional[ScoreResult]:
+        res = copy.deepcopy(score_result)
         if score_result.title not in self.music_combos:
-            return None
-        nc = self.music_combos[score_result.title][score_result.difficulty.lower()]
-        nr = score_result.perfect + score_result.great + score_result.good + score_result.bad + score_result.miss
+            res.title = self.__correct_title(score_result.title)
+        nc = self.music_combos[res.title][res.difficulty.lower()]
+        nr = res.perfect + res.great + res.good + res.bad + res.miss
         if nc != nr:
             return None
-        return score_result
+        return res
 
     def update(self) -> None:
         try:
