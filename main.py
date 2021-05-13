@@ -2,13 +2,13 @@ import os
 from flask import Flask, request, render_template
 from pytz import utc
 import requests
-import random
 import imghdr
 import sys
 from apscheduler.schedulers.background import BackgroundScheduler
 import shutil
 import os.path
 import json
+import uuid
 
 import ocr_result
 
@@ -62,13 +62,12 @@ def hello():
 @app.route('/ocr', methods=["GET", "POST"])
 def ocr():
     file_path = ""
-    file_num = ""
+    file_name = str(uuid.uuid4())
     if request.method == "POST":
         if request.files['src_file'].filename == '':
             return {"status": "error", "message": "ファイルを指定してください"}
         img_file = request.files['src_file']
-        file_num = str(int(random.random() * 10000000000))
-        file_path = os.path.join(UPLOAD_FOLDER, file_num)
+        file_path = os.path.join(UPLOAD_FOLDER, file_name)
         img_file.save(file_path)
     else:
         if request.args.get('src') is None:
@@ -78,8 +77,7 @@ def ocr():
             file_data = requests.get(src_url)
         except requests.exceptions.RequestException:
             return {"status": "error", "message": "有効なURLではありません"}
-        file_num = str(int(random.random() * 10000000000))
-        file_path = os.path.join(UPLOAD_FOLDER, file_num)
+        file_path = os.path.join(UPLOAD_FOLDER, file_name)
         with open(file_path, mode='wb') as f:
             f.write(file_data.content)
     ext = imghdr.what(file_path)
@@ -104,7 +102,7 @@ def ocr():
         return {"status": "error", "message": "正しい読み取りが出来ませんでした"}
     if SAVE_CORRECT:
         shutil.move(file_path, os.path.join(CORRECT_FOLDER, "img"))
-        with open(os.path.join(CORRECT_FOLDER, "json", file_num + ".json"), 'w') as f:
+        with open(os.path.join(CORRECT_FOLDER, "json", file_name + ".json"), 'w') as f:
             json.dump(fixed_data.to_dict(), f, ensure_ascii=False)
     else:
         os.remove(file_path)
