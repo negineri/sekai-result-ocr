@@ -3,11 +3,12 @@ LABEL maintainer="harusoin@gmail.com"
 ARG DEBIAN_FRONTEND=noninteractive
 ENV PIPENV_VENV_IN_PROJECT 1
 WORKDIR /opt/sekai-result-ocr
-RUN echo "deb https://notesalexp.org/tesseract-ocr/buster/ buster main" >> /etc/apt/sources.list \
+RUN apt-get -q -y update \
+  && apt-get -q -y -o "DPkg::Options::=--force-confold" -o "DPkg::Options::=--force-confdef" install git wget gnupg\
+  && echo "deb https://notesalexp.org/tesseract-ocr/buster/ buster main" >> /etc/apt/sources.list \
   && wget -O - https://notesalexp.org/debian/alexp_key.asc | apt-key add - \
   && apt-get -q -y update \
-  && apt-get -q -y -o "DPkg::Options::=--force-confold" -o "DPkg::Options::=--force-confdef" install git \
-    tesseract-ocr \
+  && apt-get -q -y -o "DPkg::Options::=--force-confold" -o "DPkg::Options::=--force-confdef" install tesseract-ocr \
   && apt-get -q -y autoremove \
   && apt-get -q -y clean \
   && rm -rf /var/lib/apt/lists/* \
