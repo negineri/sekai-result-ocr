@@ -14,7 +14,7 @@ RUN echo "deb https://notesalexp.org/tesseract-ocr/buster/ buster main" >> /etc/
   && wget https://github.com/tesseract-ocr/tessdata_best/raw/master/eng.traineddata \
   && mv eng.traineddata /usr/share/tesseract-ocr/4.00/tessdata/ \
   && wget https://github.com/tesseract-ocr/tessdata_best/raw/master/jpn.traineddata \
-  && mv jpn.traineddata /usr/share/tesseract-ocr/4.00/tessdata/
+  && mv jpn.traineddata /usr/share/tesseract-ocr/4.00/tessdata/ \
   && git clone https://github.com/negineri/sekai-result-ocr.git . \
   && pip install --upgrade pip \
   && pip install pipenv \
