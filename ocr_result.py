@@ -24,6 +24,7 @@ class ScoreResult:
         self.good = 0
         self.bad = 0
         self.miss = 0
+        self.x_series = ""
 
     def to_dict(self):
         res = {'live': self.live,
@@ -33,7 +34,8 @@ class ScoreResult:
                'great': self.great,
                'good': self.good,
                'bad': self.bad,
-               'miss': self.miss}
+               'miss': self.miss,
+               'x_series': self.x_series}
         return res
 
 
@@ -125,6 +127,10 @@ def __crop_score(im: Image.Image, w, h, tool, result: ScoreResult, debug=False) 
                 print(f"perfect: {perfect}", end="")
             result.live = "challenge"
             result.perfect = int(perfect)
+            if b == 0:
+                result.x_series = "no"
+            else:
+                result.x_series = "yes"
             return im_score
 
         im_score = im.crop((int(w * 0.101), int(h * 0.512 - b), int(w * 0.586), int(h * 0.854 - b)))
@@ -139,6 +145,10 @@ def __crop_score(im: Image.Image, w, h, tool, result: ScoreResult, debug=False) 
                 print(f"perfect: {perfect}", end="")
             result.live = "normal"
             result.perfect = int(perfect)
+            if b == 0:
+                result.x_series = "no"
+            else:
+                result.x_series = "yes"
             return im_score
     return None
 
