@@ -10,6 +10,7 @@ requests = "*"
 flask = "*"
 gunicorn = "*"
 apscheduler = "*"
+opencv-python-headless = "*"
 
 [dev-packages]
 autopep8 = "*"

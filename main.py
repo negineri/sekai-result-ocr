@@ -28,6 +28,7 @@ if os.environ.get('SAVE_WRONG', 'false').lower() == 'true':
     SAVE_WRONG = True
 else:
     SAVE_WRONG = False
+TEMPLATE_PATH = os.environ.get('TEMPLATE_PATH', 'data/tpls')
 
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -39,6 +40,8 @@ try:
 except ocr_result.OCRException as err:
     print(err)
     sys.exit(1)
+
+reader = ocr_result.ResultReader(TEMPLATE_PATH)
 
 apsd = BackgroundScheduler(timezone=utc)
 
@@ -86,7 +89,7 @@ def ocr():
         return {"status": "error", "message": "非対応の画像形式です"}
     os.rename(file_path, file_path + "." + ext)
     file_path = file_path + "." + ext
-    result = ocr_result.loadfile(file_path)
+    result = reader.loadfile(file_path)
     if result is None:
         if SAVE_WRONG:
             shutil.move(file_path, os.path.join(WRONG_FOLDER, "img"))
