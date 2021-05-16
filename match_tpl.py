@@ -79,7 +79,7 @@ class TPLMatcher:
             except Exception:
                 raise TPLMatchException("Failed to tplmatch")
 
-            maxVal_All = 0.4
+            maxVal_All = 0.0
             num_dsp = -1
             for j in range(10):
                 result = cv2.matchTemplate(base, self.tpls[j], cv2.TM_CCOEFF_NORMED)
