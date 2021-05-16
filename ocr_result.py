@@ -7,8 +7,21 @@ import unicodedata
 import difflib
 import copy
 import match_tpl
+import cv2
+import os.path
 
-NOTES_THRESHOLD = 190
+
+def cv2pil(image):
+    ''' OpenCV型 -> PIL型 '''
+    new_image = image.copy()
+    if new_image.ndim == 2:  # モノクロ
+        pass
+    elif new_image.shape[2] == 3:  # カラー
+        new_image = cv2.cvtColor(new_image, cv2.COLOR_BGR2RGB)
+    elif new_image.shape[2] == 4:  # 透過
+        new_image = cv2.cvtColor(new_image, cv2.COLOR_BGRA2RGBA)
+    new_image = Image.fromarray(new_image)
+    return new_image
 
 
 class OCRException(Exception):
@@ -52,6 +65,7 @@ class ScoreResultChecker:
 
     def __correct_title(self, title):
         title = unicodedata.normalize('NFKC', title)
+        title = title.replace(' ', '')
         match_ratio = 0
         correct_title = ""
         for t in self.music_combos:
@@ -65,6 +79,7 @@ class ScoreResultChecker:
         res = copy.deepcopy(score_result)
         if score_result.title not in self.music_combos:
             res.title = self.__correct_title(score_result.title)
+        print(res.title)
         nc = self.music_combos[res.title][res.difficulty.lower()]
         nr = res.perfect + res.great + res.good + res.bad + res.miss
         if nc != nr:
@@ -96,6 +111,8 @@ class ScoreResultChecker:
 class ResultReader:
     def __init__(self, tpl_path: str) -> None:
         self.matcher = match_tpl.TPLMatcher(tpl_path)
+        self.tpl_combo = cv2.imread(os.path.join(tpl_path, "combo.png"), 0)
+        self.method = cv2.TM_CCOEFF_NORMED
 
     def __resize_image(self, img, magnification):
         ImgWidth = img.width * magnification
@@ -115,55 +132,42 @@ class ResultReader:
         return res
 
     def __crop_score(self, im: Image.Image, w, h, tool, result: ScoreResult, debug=False) -> Optional[Image.Image]:
-        xs_buffer = h * 0.018   # iPhone X series homebar buffer
+        img = match_tpl.pil2cv(im.convert("L").point(lambda _: 255 if _ > 220 else 0))
+        h, w = img.shape
+        ch, cw = self.tpl_combo.shape
+        tpl_img = cv2.resize(self.tpl_combo, (int(w * 0.206), int(w * 0.206 * ch / cw)))
 
-        for b in [0, xs_buffer]:
-            im_score = im.crop((int(w * 0.041), int(h * 0.622 - b), int(w * 0.526), int(h * 0.964 - b)))
-            im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.259), int(im_score.width * 0.978), int(im_score.height * 0.379))).\
-                convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
-            perfect = tool.image_to_string(im_perfect, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
-            if debug:
-                print(perfect)
-                im_perfect.save(f"data/dst/perfect_c_{b}.png", "PNG")
-            if perfect.isdecimal():
-                try:
-                    perfect = self.matcher.match(match_tpl.pil2cv(im_perfect))
-                except match_tpl.TPLMatchException as err:
-                    print(err)
-                    return None
-                if debug:
-                    print(f"perfect: {perfect}", end="")
-                result.live = "challenge"
-                result.perfect = int(perfect)
-                if b == 0:
-                    result.x_series = "no"
-                else:
-                    result.x_series = "yes"
-                return im_score
+        # Apply template Matching
+        res = cv2.matchTemplate(img, tpl_img, self.method)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
 
-            im_score = im.crop((int(w * 0.101), int(h * 0.512 - b), int(w * 0.586), int(h * 0.854 - b)))
-            im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.259), int(im_score.width * 0.978), int(im_score.height * 0.379))).\
-                convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
-            perfect = tool.image_to_string(im_perfect, lang="eng", builder=pyocr.builders.TextBuilder(tesseract_layout=7))
-            if debug:
-                print(perfect)
-                im_perfect.save(f"data/dst/perfect_n_{b}.png", "PNG")
-            if perfect.isdecimal():
-                try:
-                    perfect = self.matcher.match(match_tpl.pil2cv(im_perfect))
-                except match_tpl.TPLMatchException as err:
-                    print(err)
-                    return None
-                if debug:
-                    print(f"perfect: {perfect}", end="")
-                result.live = "normal"
-                result.perfect = int(perfect)
-                if b == 0:
-                    result.x_series = "no"
-                else:
-                    result.x_series = "yes"
-                return im_score
-        return None
+        # If the method is TM_SQDIFF or TM_SQDIFF_NORMED, take minimum
+        if self.method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+            top_left = min_loc
+        else:
+            top_left = max_loc
+
+        # crop = im[top_left[1]:top_left[1] + int(w * 0.481 * 0.397), top_left[0]:top_left[0] + int(w * 0.481)]
+        im_score = im.crop((top_left[0], top_left[1], top_left[0] + int(w * 0.484), top_left[1] + int(w * 0.484 * 0.397)))
+
+        im_perfect = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.259), int(im_score.width * 0.978), int(im_score.height * 0.379)))
+        if debug:
+            img_tmp = match_tpl.pil2cv(im)
+            cv2.rectangle(img_tmp, top_left, (top_left[0] + int(w * 0.484), top_left[1] + int(w * 0.484 * 0.397)), (0, 255, 0), cv2.LINE_4)
+            cv2.imwrite("data/dst/mono.png", img)
+            cv2.imwrite("data/dst/tpl_match.png", img_tmp)
+            im_perfect.save("data/dst/perfect.png", "PNG")
+        try:
+            perfect = self.matcher.match(match_tpl.pil2cv(im_perfect))
+        except match_tpl.TPLMatchException as err:
+            print(err)
+            return None
+        if debug:
+            print(f"perfect: {perfect}", end="")
+        if perfect == "":
+            return None
+        result.perfect = int(perfect)
+        return im_score
 
     def loadfile(self, fp: str, debug=False) -> Optional[ScoreResult]:
         tools = pyocr.get_available_tools()
@@ -211,8 +215,7 @@ class ResultReader:
             im_mono.save("data/dst/im_mono.png", "PNG")
             # print(f"{croprange}")
 
-        im_great = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.399), int(im_score.width * 0.978), int(im_score.height * 0.522))).\
-            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
+        im_great = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.399), int(im_score.width * 0.978), int(im_score.height * 0.522)))
         try:
             great = self.matcher.match(match_tpl.pil2cv(im_great))
         except match_tpl.TPLMatchException as err:
@@ -221,10 +224,11 @@ class ResultReader:
         if debug:
             print(f"/ great: {great} ", end="")
             im_great.save("data/dst/great.png", "PNG")
+        if great == "":
+            return None
         result.great = int(great)
 
-        im_good = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.542), int(im_score.width * 0.978), int(im_score.height * 0.665))).\
-            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
+        im_good = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.542), int(im_score.width * 0.978), int(im_score.height * 0.665)))
         try:
             good = self.matcher.match(match_tpl.pil2cv(im_good))
         except match_tpl.TPLMatchException as err:
@@ -233,10 +237,11 @@ class ResultReader:
         if debug:
             print(f"/ good: {good} ", end="")
             im_good.save("data/dst/good.png", "PNG")
+        if good == "":
+            return None
         result.good = int(good)
 
-        im_bad = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.685), int(im_score.width * 0.978), int(im_score.height * 0.808))).\
-            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
+        im_bad = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.685), int(im_score.width * 0.978), int(im_score.height * 0.808)))
         try:
             bad = self.matcher.match(match_tpl.pil2cv(im_bad))
         except match_tpl.TPLMatchException as err:
@@ -245,10 +250,11 @@ class ResultReader:
         if debug:
             print(f"/ bad: {bad} ", end="")
             im_bad.save("data/dst/bad.png", "PNG")
+        if bad == "":
+            return None
         result.bad = int(bad)
 
-        im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.828), int(im_score.width * 0.978), int(im_score.height * 0.948))).\
-            convert("L").point(lambda _: 0 if _ > NOTES_THRESHOLD else 255)
+        im_miss = im_score.crop((int(im_score.width * 0.859), int(im_score.height * 0.828), int(im_score.width * 0.978), int(im_score.height * 0.948)))
         try:
             miss = self.matcher.match(match_tpl.pil2cv(im_miss))
         except match_tpl.TPLMatchException as err:
@@ -257,6 +263,8 @@ class ResultReader:
         if debug:
             print(f"/ miss: {miss} ", end="")
             im_miss.save("data/dst/miss.png", "PNG")
+        if miss == "":
+            return None
         result.miss = int(miss)
 
         title = tool.image_to_string(im_title, lang="jpn", builder=pyocr.builders.TextBuilder(tesseract_layout=7))

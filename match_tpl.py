@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import os.path
 
+NOTES_THRESHOLDS = [170, 200]
+
 
 class TPLMatchException(Exception):
     ...
@@ -53,12 +55,31 @@ class TPLMatcher:
         self.bg[:, :] = (255, 255, 255)
         self.bg = cv2.cvtColor(self.bg, cv2.COLOR_BGR2GRAY)
 
-    def match(self, im_wb) -> str:
-        im_bw = cv2.bitwise_not(im_wb)
-        # im_bw = im_gray
+    def match(self, im) -> str:
+        cnts_count = 5
+        im_wb = None
+        cnts = None
+        im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+        for t in NOTES_THRESHOLDS:
+            _, im_wb_tmp = cv2.threshold(im_gray, t, 255, cv2.THRESH_BINARY_INV)
+            im_bw_tmp = cv2.bitwise_not(im_wb_tmp)
+            # im_bw = im_gray
 
-        # 輪郭の検出
-        cnts, _ = cv2.findContours(im_bw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # 輪郭の検出
+            cnts_tmp, _ = cv2.findContours(im_bw_tmp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            noise_index = []
+            for i in reversed(range(len(cnts_tmp))):
+                _, _, _, h = cv2.boundingRect(cnts_tmp[i])
+                if h < im.shape[0] / 2:
+                    noise_index.append(i)
+            for i in noise_index:
+                cnts_tmp.pop(i)
+            if len(cnts_tmp) > 0 and len(cnts_tmp) < cnts_count:
+                cnts_count = len(cnts_tmp)
+                cnts = cnts_tmp
+                im_wb = im_wb_tmp
+        if cnts_count == 5:
+            return ""
 
         contours, _ = sort_contours(cnts)
 
@@ -79,7 +100,7 @@ class TPLMatcher:
             except Exception:
                 raise TPLMatchException("Failed to tplmatch")
 
-            maxVal_All = 0.0
+            maxVal_All = 0.4
             num_dsp = -1
             for j in range(10):
                 result = cv2.matchTemplate(base, self.tpls[j], cv2.TM_CCOEFF_NORMED)
@@ -87,5 +108,7 @@ class TPLMatcher:
                 if max_val > maxVal_All:
                     num_dsp = j
                     maxVal_All = max_val
+            if num_dsp == -1:
+                return ""
             num += str(num_dsp)
         return num
