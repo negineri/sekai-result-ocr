@@ -6,7 +6,8 @@ try:
 except ocr_result.OCRException as err:
     print(err)
     sys.exit(1)
-data = ocr_result.loadfile("/workspace/tmp/6676779024.jpeg", debug=True)
+reader = ocr_result.ResultReader('data/tpls')
+data = reader.loadfile("/workspace/tmp/6e2d8825-7390-4d42-b179-5e815ce76d67.png")
 print(data.to_dict())
 fix_data = checker.correct(data)
 if fix_data is not None:
